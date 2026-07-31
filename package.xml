@@ -4,7 +4,9 @@
   <name>dexi_hand_gesture</name>
   <version>0.1.0</version>
   <description>Hand gesture recognition ROS2 node for DEXI. Subscribes to compressed camera images and publishes recognized gestures on /hand_gesture_detections. Works with Node-RED via rosbridge and with Python subscribers.</description>
+  <!-- Primary maintainer first. Keep in sync with .github/CODEOWNERS. -->
   <maintainer email="bentheperson1@gmail.com">Ben Holland</maintainer>
+  <maintainer email="db@droneblocks.io">Dennis Baldwin</maintainer>
   <author email="bentheperson1@gmail.com">Ben Holland</author>
   <license>MIT</license>
 
