@@ -2,7 +2,7 @@
 """Publishes recognized hand gestures on /hand_gesture_detections.
 
 This is a working skeleton. It subscribes, decodes frames, smooths, and
-publishes on the real topic contract — but always classifies as NONE.
+publishes on the real topic contract, but always classifies as NONE.
 Drop a recognizer into GestureRecognizer.classify() to make it real.
 See CONTRIBUTING.md.
 """
@@ -17,12 +17,13 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 
-# The published vocabulary. Never publish a recognizer's raw label — map it here.
+# The published vocabulary. Map a recognizer's raw labels into this rather
+# than publishing them straight through.
 #
-# NONE and UNKNOWN are distinct and must stay that way. MediaPipe emits the
-# category "None" for *hand visible, no gesture matched*, while the research
-# sandbox used "none" for *no hand at all*. One capital letter apart, opposite
-# meanings. A consumer testing == "none" would silently ignore every
+# NONE and UNKNOWN are separate values. MediaPipe emits the category "None"
+# when a hand is visible but no gesture matched, while the research sandbox
+# used "none" for no hand at all. One capital letter apart, opposite meanings.
+# A consumer testing == "none" would silently ignore every
 # hand-present-but-unrecognized frame.
 NONE = 'none'          # no hand in frame
 UNKNOWN = 'unknown'    # hand present, no gesture matched or below min score
@@ -44,15 +45,15 @@ class GestureRecognizer:
     """Seam for the actual recognizer. Replace the body, keep the interface.
 
     classify() must return a string from VOCABULARY and must not block longer
-    than a frame interval. close() must release any model resources — a
-    MediaPipe LIVE_STREAM task left open hangs interpreter teardown and makes
-    the process ignore SIGTERM, which systemd reads as unrestartable.
+    than a frame interval. close() releases model resources. A MediaPipe
+    LIVE_STREAM task left open hangs interpreter teardown and makes the
+    process ignore SIGTERM, which systemd sees as unrestartable.
     """
 
     def __init__(self, model_path, min_gesture_score, logger):
         self._logger = logger
         self._logger.warn(
-            'No recognizer wired up — publishing "%s" for every frame. '
+            'No recognizer wired up, publishing "%s" for every frame. '
             'Implement GestureRecognizer.classify().' % NONE
         )
 
@@ -128,8 +129,9 @@ class HandGestureNode(Node):
         """Monotonic milliseconds derived from the image header.
 
         Recognizers that hold temporal state require strictly increasing
-        timestamps. Tying them to the frame rather than the wall clock keeps
-        them honest, with a guard for cameras that publish a zero stamp.
+        timestamps. Deriving them from the frame rather than the wall clock
+        keeps them tied to the image, with a guard for cameras that publish a
+        zero stamp.
         """
         stamp = msg.header.stamp
         ms = stamp.sec * 1000 + stamp.nanosec // 1_000_000
@@ -141,10 +143,9 @@ class HandGestureNode(Node):
     def _publish(self, gesture):
         """Majority vote over the window, then publish.
 
-        One message per processed frame, never on a timer. Message *arrival* is
-        the freshness signal: if this node or the camera dies the topic goes
-        quiet, and consumers can fail safe on a ~1s timeout. A heartbeat would
-        destroy that property.
+        One message per processed frame, not on a timer. Message arrival is the
+        freshness signal, so if this node or the camera dies the topic goes
+        quiet and consumers can fail safe on a ~1s timeout.
         """
         self._votes.append(gesture)
         winner = Counter(self._votes).most_common(1)[0][0]

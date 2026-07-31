@@ -33,7 +33,7 @@ class GestureSubscriber(Node):
     def _check_stale(self):
         age = (self.get_clock().now() - self._last_seen).nanoseconds / 1e9
         if age > TIMEOUT_SEC and not self._stale:
-            self.get_logger().warn('No gesture for %.1fs — treating as fault' % age)
+            self.get_logger().warn('No gesture for %.1fs, treating as fault' % age)
             self._stale = True
 
 

@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
-    # Camera input. Use the 2 Hz throttled topic — the full 30 Hz feed costs ~86%
-    # of a core on a CM5, the throttled one ~10%. See README "Cost on a CM5".
+    # Camera input. Use the 2 Hz throttled topic. The full 30 Hz feed costs ~86%
+    # of a core on a CM5, the throttled one ~10%. See README "Bench notes".
     input_topic: /cam0/image_raw/compressed_2hz
     output_topic: /hand_gesture_detections
 

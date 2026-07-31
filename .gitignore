@@ -4,7 +4,7 @@ build/
 install/
 log/
 
-# Recognizer models are large binaries — keep them off the repo.
+# Recognizer models are large binaries. Keep them off the repo.
 *.task
 *.tflite
 *.pkl
