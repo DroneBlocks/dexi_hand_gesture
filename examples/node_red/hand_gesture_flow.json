@@ -1,0 +1,66 @@
+[
+    {
+        "id": "hand_gesture_flow",
+        "type": "tab",
+        "label": "Hand Gesture",
+        "info": "Subscribe to /hand_gesture_detections and act on the gesture.\nRequires rosbridge_websocket running on port 9090.\n\nNothing is published on a timer, so silence means the node or camera died.\nThe stale check below treats no message for 1s as a fault."
+    },
+    {
+        "id": "ros_sub_gesture",
+        "type": "ros2-subscriber",
+        "z": "hand_gesture_flow",
+        "name": "Hand Gestures",
+        "topic": "/hand_gesture_detections",
+        "topicType": "std_msgs/msg/String",
+        "x": 150,
+        "y": 200,
+        "wires": [["route_gesture"]]
+    },
+    {
+        "id": "route_gesture",
+        "type": "function",
+        "z": "hand_gesture_flow",
+        "name": "Route gesture",
+        "func": "// The gesture string is msg.payload.data\nconst gesture = msg.payload.data;\n\n// 'none' = no hand in frame. 'unknown' = hand present, not recognized.\n// They are different and must be handled separately.\nif (gesture === 'none' || gesture === 'unknown') {\n    return null;\n}\n\nmsg.payload = gesture;\nreturn msg;",
+        "outputs": 1,
+        "x": 370,
+        "y": 200,
+        "wires": [["debug_gesture"]]
+    },
+    {
+        "id": "debug_gesture",
+        "type": "debug",
+        "z": "hand_gesture_flow",
+        "name": "Recognized Gesture",
+        "active": true,
+        "x": 610,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "stale_check",
+        "type": "trigger",
+        "z": "hand_gesture_flow",
+        "name": "1s silence = fault",
+        "op1": "",
+        "op2": "stale",
+        "op1type": "nul",
+        "op2type": "str",
+        "duration": "1",
+        "units": "s",
+        "extend": true,
+        "x": 380,
+        "y": 300,
+        "wires": [["debug_stale"]]
+    },
+    {
+        "id": "debug_stale",
+        "type": "debug",
+        "z": "hand_gesture_flow",
+        "name": "Topic Stale",
+        "active": true,
+        "x": 610,
+        "y": 300,
+        "wires": []
+    }
+]

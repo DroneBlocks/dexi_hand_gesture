@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+build/
+install/
+log/
+
+# Recognizer models are large binaries — keep them off the repo.
+*.task
+*.tflite
+*.pkl

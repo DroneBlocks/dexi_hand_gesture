@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>dexi_hand_gesture</name>
+  <version>0.1.0</version>
+  <description>Hand gesture recognition ROS2 node for DEXI. Subscribes to compressed camera images and publishes recognized gestures on /hand_gesture_detections. Works with Node-RED via rosbridge and with Python subscribers.</description>
+  <maintainer email="bentheperson1@gmail.com">Ben Holland</maintainer>
+  <author email="bentheperson1@gmail.com">Ben Holland</author>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>python3-opencv</depend>
+
+  <!-- mediapipe is intentionally not declared here: it has no rosdep key, and the
+       last linux-aarch64 wheel is 0.10.18. See README "Dependencies". -->
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
