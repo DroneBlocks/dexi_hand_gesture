@@ -8,3 +8,7 @@ log/
 *.task
 *.tflite
 *.pkl
+*.joblib
+*.npz
+
+.venv/

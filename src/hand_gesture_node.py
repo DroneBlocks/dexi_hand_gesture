@@ -17,52 +17,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 
-# The published vocabulary. Map a recognizer's raw labels into this rather
-# than publishing them straight through.
-#
-# NONE and UNKNOWN are separate values. MediaPipe emits the category "None"
-# when a hand is visible but no gesture matched, while the research sandbox
-# used "none" for no hand at all. One capital letter apart, opposite meanings.
-# A consumer testing == "none" would silently ignore every
-# hand-present-but-unrecognized frame.
-NONE = 'none'          # no hand in frame
-UNKNOWN = 'unknown'    # hand present, no gesture matched or below min score
-
-GESTURES = (
-    'open_palm',
-    'closed_fist',
-    'pointing_up',
-    'thumb_up',
-    'thumb_down',
-    'victory',
-    'i_love_you',
-)
-
-VOCABULARY = (NONE, UNKNOWN) + GESTURES
-
-
-class GestureRecognizer:
-    """Seam for the actual recognizer. Replace the body, keep the interface.
-
-    classify() must return a string from VOCABULARY and must not block longer
-    than a frame interval. close() releases model resources. A MediaPipe
-    LIVE_STREAM task left open hangs interpreter teardown and makes the
-    process ignore SIGTERM, which systemd sees as unrestartable.
-    """
-
-    def __init__(self, model_path, min_gesture_score, logger):
-        self._logger = logger
-        self._logger.warn(
-            'No recognizer wired up, publishing "%s" for every frame. '
-            'Implement GestureRecognizer.classify().' % NONE
-        )
-
-    def classify(self, frame, timestamp_ms):
-        return NONE
-
-    def close(self):
-        pass
-
+from classifier_module import GestureClassifier
 
 class HandGestureNode(Node):
 
@@ -84,11 +39,7 @@ class HandGestureNode(Node):
         self._last_stamp_ms = -1
         self._last_published = None
 
-        self._recognizer = GestureRecognizer(
-            self.get_parameter('model_path').value,
-            self.get_parameter('min_gesture_score').value,
-            self.get_logger(),
-        )
+        self._recognizer = GestureClassifier()
 
         self._publisher = self.create_publisher(String, output_topic, 10)
 
@@ -114,10 +65,7 @@ class HandGestureNode(Node):
                 self.get_logger().warn('Failed to decode frame')
                 return
 
-            gesture = self._recognizer.classify(frame, self._timestamp_ms(msg))
-            if gesture not in VOCABULARY:
-                self.get_logger().warn('Off-vocabulary label %r' % gesture)
-                gesture = UNKNOWN
+            gesture = self._recognizer.process_on_frame(frame, self._timestamp_ms(msg))
 
             self._publish(gesture)
         except Exception as exc:  # a bad frame must not kill the node
