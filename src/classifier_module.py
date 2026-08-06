@@ -1,3 +1,4 @@
+import os
 import time
 import math
 from collections import deque, Counter
@@ -8,16 +9,24 @@ import joblib
 import mediapipe as mp
 
 class GestureClassifier:
-	def __init__(self):
-		self.landmarker_model = "../data/hand_landmarker.task"
-		self.classifier_model = "../data/gesture_classifier.joblib"
+	def __init__(self, model_path = None, min_gesture_score = None):
+		if model_path:
+			self.landmarker_model = model_path
+			data_dir = os.path.dirname(os.path.abspath(model_path))
+		else:
+			data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+			self.landmarker_model = os.path.join(data_dir, "hand_landmarker.task")
+
+		self.classifier_model = os.path.join(data_dir, "gesture_classifier.joblib")
 
 		min_detection_confidence = 0.5
 		min_tracking_confidence = 0.5
 
 		self.smooth_window = 2
-		self.confidence_floor = 0.5
-		self.multi_confidence_floor = 0.6
+		self.confidence_floor = min_gesture_score if min_gesture_score is not None else 0.5
+		self.multi_confidence_floor = (min_gesture_score + 0.1) if min_gesture_score is not None else 0.6
+
+		self.box_pad = 0.02
 
 		self.latest = {
 			"hands": [],

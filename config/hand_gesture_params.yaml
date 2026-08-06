@@ -6,7 +6,7 @@
     output_topic: /hand_gesture_detections
 
     # Absolute path to the recognizer model on the drone.
-    model_path: /home/dexi/models/gesture_recognizer.task
+    model_path: /home/ubuntu/dexi_ws/src/dexi_hand_gesture/data/hand_landmarker.task
 
     # Below this score a hand is reported as "unknown" rather than a gesture.
     min_gesture_score: 0.5

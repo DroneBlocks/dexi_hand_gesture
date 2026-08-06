@@ -32,6 +32,8 @@ class HandGestureNode(Node):
 
         input_topic = self.get_parameter('input_topic').value
         output_topic = self.get_parameter('output_topic').value
+        model_path = self.get_parameter('model_path').value
+        min_gesture_score = self.get_parameter('min_gesture_score').value
         vote_window = max(1, self.get_parameter('vote_window').value)
 
         self._votes = deque(maxlen=vote_window)
@@ -39,7 +41,10 @@ class HandGestureNode(Node):
         self._last_stamp_ms = -1
         self._last_published = None
 
-        self._recognizer = GestureClassifier()
+        self._recognizer = GestureClassifier(
+            model_path=model_path if model_path else None,
+            min_gesture_score=min_gesture_score,
+        )
 
         self._publisher = self.create_publisher(String, output_topic, 10)
 
