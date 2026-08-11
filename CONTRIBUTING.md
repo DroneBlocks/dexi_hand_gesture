@@ -51,3 +51,19 @@ examples/node_red/   importable flows
 ```
 
 This package publishes what it sees and doesn't command the drone. What `none` should mean to an offboard controller (hold, hold with timeout, or stop) gets decided downstream by the PIC.
+
+## Environment setup
+
+After cloning and before building:
+
+    pip3 install --break-system-packages -r src/dexi_hand_gesture/requirements.txt
+
+This overrides apt's system-installed `scipy`, which predates NumPy 2.x and
+breaks `joblib.load()` -> sklearn -> scipy import chain with
+`AttributeError: _ARRAY_API not found`. Do this before `colcon build`.
+
+Then:
+
+    colcon build --symlink-install
+    source install/setup.bash
+    ros2 launch dexi_hand_gesture hand_gesture_launch.py

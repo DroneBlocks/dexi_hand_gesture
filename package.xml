@@ -17,6 +17,7 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>python3-opencv</depend>
+  <depend>dexi_interfaces</depend>
 
   <!-- mediapipe is intentionally not declared here: it has no rosdep key, and the
        last linux-aarch64 wheel is 0.10.18. See README "Dependencies". -->

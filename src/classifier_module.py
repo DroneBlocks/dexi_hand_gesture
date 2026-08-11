@@ -22,7 +22,7 @@ class GestureClassifier:
 		min_detection_confidence = 0.5
 		min_tracking_confidence = 0.5
 
-		self.smooth_window = 2
+		self.smooth_window = 10
 		self.confidence_floor = min_gesture_score if min_gesture_score is not None else 0.5
 		self.multi_confidence_floor = (min_gesture_score + 0.1) if min_gesture_score is not None else 0.6
 
@@ -30,7 +30,7 @@ class GestureClassifier:
 
 		self.latest = {
 			"hands": [],
-			"gesture": "none",
+			"gesture": "no_gesture",
 			"score": 0.0,
 			"two_hand": False
 		}
@@ -114,7 +114,7 @@ class GestureClassifier:
 		ys = [lm.y for lm in hand]
 		
 		return {
-			"gesture": "none",
+			"gesture": "no_gesture",
 			"score": 0.0,
 			"handedness": handedness_label,
 			"box_x1": min(xs) - self.box_pad,
@@ -134,7 +134,7 @@ class GestureClassifier:
 			history.append(gesture)
 		
 		if len(history) == 0:
-			return "none"
+			return "no_gesture"
 		
 		return Counter(history).most_common(1)[0][0]
 
@@ -142,7 +142,7 @@ class GestureClassifier:
 		self.multi_history.clear()
 		
 		if self.clf_single is None:
-			self.set_latest(hands_out, "none", 0.0, False)
+			self.set_latest(hands_out, "no_gesture", 0.0, False)
 			return
 		
 		hand = result.hand_landmarks[0]
@@ -161,7 +161,7 @@ class GestureClassifier:
 		self.single_history.clear()
 		
 		if self.clf_multi is None:
-			self.set_latest(hands_out, "none", 0.0, True)
+			self.set_latest(hands_out, "no_gesture", 0.0, True)
 			return
 		
 		feat = self.normalize_two_hands(result.hand_landmarks[0], result.hand_landmarks[1])
@@ -170,7 +170,7 @@ class GestureClassifier:
 		voted = self.vote(self.multi_history, gesture, score, self.multi_confidence_floor)
 		
 		if voted == self.no_multi_label:
-			voted = "none"
+			voted = "no_gesture"
 		
 		for hand in hands_out:
 			hand["gesture"] = voted
@@ -182,7 +182,7 @@ class GestureClassifier:
 		if not result.hand_landmarks:
 			self.single_history.clear()
 			self.multi_history.clear()
-			self.set_latest([], "none", 0.0, False)
+			self.set_latest([], "no_gesture", 0.0, False)
 			
 			return
 		
@@ -202,7 +202,7 @@ class GestureClassifier:
 
 		self.landmarker.detect_async(mp_image, timestamp_ms)
 
-		label = "none"
+		label = "no_gesture"
 	
 		hands = self.latest["hands"]
 		
@@ -210,5 +210,9 @@ class GestureClassifier:
 			label = self.latest["gesture"]
 		elif len(hands) >= 1:
 			label = hands[0]["gesture"]
-
-		return label
+		
+		return {
+			"gesture_label": label,
+			"gesture_score": self.latest["score"],
+			"gesture_two_hand": self.latest["two_hand"],
+		}

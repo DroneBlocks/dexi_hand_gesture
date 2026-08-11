@@ -10,6 +10,7 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(dexi_interfaces REQUIRED)
 
 # Install Python executables
 install(PROGRAMS
@@ -32,6 +33,7 @@ install(DIRECTORY
 install(PROGRAMS
   src/hand_gesture_node.py
   src/classifier_module.py
+  examples/python/take_photo.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
