@@ -20,7 +20,7 @@ class HandGestureNode(Node):
         self.declare_parameter('input_topic', '/cam0/image_raw/compressed')
         self.declare_parameter('output_topic', '/hand_gesture_detections')
         self.declare_parameter('model_path', '')
-        self.declare_parameter('min_gesture_score', 0.5)
+        self.declare_parameter('min_gesture_score', 0.25)
         self.declare_parameter('vote_window', 3)
 
         self.declare_parameter('idle_timeout_sec', 1.0)
@@ -109,13 +109,15 @@ class HandGestureNode(Node):
         if winner != self._last_published:
             self.get_logger().info('gesture: %s' % winner)
             self._last_published = winner
+            self._votes.clear()
 
-        self.get_logger().info('publishing: %s' % winner)
+        self.get_logger().info(f'publishing: {winner}, score: {result["gesture_score"]:.2f}, two_hand: {result["gesture_two_hand"]}')
 
         msg = HandGestureDetection()
         msg.gesture_name = winner
         msg.gesture_score = result['gesture_score']
         msg.two_hand = result['gesture_two_hand']
+        msg.bbox = result['bbox']
         self._publisher.publish(msg)
 
     def _on_idle_timer(self):
@@ -132,6 +134,7 @@ class HandGestureNode(Node):
         msg.gesture_name = 'no_gesture'
         msg.gesture_score = 0.0
         msg.two_hand = False
+        msg.bbox = [0.0, 0.0, 0.0, 0.0]
         self._publisher.publish(msg)
 
     def close(self):

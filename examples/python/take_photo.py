@@ -22,7 +22,7 @@ class TakePhotoClient(Node):
         self.image_callback_group = MutuallyExclusiveCallbackGroup()
 
         self.create_subscription(
-            HandGestureDetection, '/hand_gesture_detections', self._on_gesture, 10
+            HandGestureDetection, '/hand_gesture_detections', self._on_gesture, 104
         )
 
         self.cam_subscription = self.create_subscription(
@@ -47,7 +47,7 @@ class TakePhotoClient(Node):
 
         self.flash_timer = None
 
-        self.min_confidence_threshold = 0.8
+        self.min_confidence_threshold = 0.7
 
         while not self.led_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('LED service not available, waiting again...')
@@ -119,7 +119,7 @@ class TakePhotoClient(Node):
 
             self.get_logger().info('Saving photo from /cam0 topic...')
 
-            photo_name = f'/tmp/dexi_photo_{self.get_clock().now().to_msg().sec}.jpg'
+            photo_name = f'dexi_photo_{self.get_clock().now().to_msg().sec}.jpg'
             cv2.imwrite(photo_name, self.camera_frame)
 
     def _clear_flash(self):

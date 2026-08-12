@@ -19,10 +19,10 @@ class GestureClassifier:
 
 		self.classifier_model = os.path.join(data_dir, "gesture_classifier.joblib")
 
-		min_detection_confidence = 0.5
-		min_tracking_confidence = 0.5
+		min_detection_confidence = 0.35
+		min_tracking_confidence = 0.35
 
-		self.smooth_window = 10
+		self.smooth_window = 1
 		self.confidence_floor = min_gesture_score if min_gesture_score is not None else 0.5
 		self.multi_confidence_floor = (min_gesture_score + 0.1) if min_gesture_score is not None else 0.6
 
@@ -200,6 +200,8 @@ class GestureClassifier:
 		rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 		mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = rgb)
 
+		frame_h, frame_w = frame.shape[:2]
+
 		self.landmarker.detect_async(mp_image, timestamp_ms)
 
 		label = "no_gesture"
@@ -210,9 +212,32 @@ class GestureClassifier:
 			label = self.latest["gesture"]
 		elif len(hands) >= 1:
 			label = hands[0]["gesture"]
+
+		box_x1 = 0.0
+		box_y1 = 0.0
+		box_x2 = 0.0
+		box_y2 = 0.0
+
+		if self.latest["two_hand"] and len(hands) >= 2:
+			box_x1 = float(min(h["box_x1"] for h in hands) * frame_w)
+			box_y1 = float(min(h["box_y1"] for h in hands) * frame_h)
+			box_x2 = float(max(h["box_x2"] for h in hands) * frame_w)
+			box_y2 = float(max(h["box_y2"] for h in hands) * frame_h)
+		else:
+			for hand in hands:
+				box_x1 = float(hand["box_x1"] * frame_w)
+				box_y1 = float(hand["box_y1"] * frame_h)
+				box_x2 = float(hand["box_x2"] * frame_w)
+				box_y2 = float(hand["box_y2"] * frame_h)
 		
 		return {
 			"gesture_label": label,
 			"gesture_score": self.latest["score"],
 			"gesture_two_hand": self.latest["two_hand"],
+			"bbox": [
+				box_x1,
+				box_y1,
+				box_x2,
+				box_y2
+			]
 		}
