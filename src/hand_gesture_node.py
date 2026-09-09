@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 
 from dexi_interfaces.msg import HandGestureDetection
@@ -22,6 +22,7 @@ class HandGestureNode(Node):
         self.declare_parameter('model_path', '')
         self.declare_parameter('min_gesture_score', 0.25)
         self.declare_parameter('vote_window', 3)
+        self.declare_parameter('proc_width', 320)
 
         self.declare_parameter('idle_timeout_sec', 1.0)
         self.declare_parameter('idle_publish_rate', 1.0)
@@ -37,23 +38,26 @@ class HandGestureNode(Node):
         model_path = self.get_parameter('model_path').value
         min_gesture_score = self.get_parameter('min_gesture_score').value
         vote_window = max(1, self.get_parameter('vote_window').value)
+        proc_width = self.get_parameter('proc_width').value
 
         self._votes = deque(maxlen=vote_window)
-        self._busy = False
         self._last_stamp_ms = -1
         self._last_published = None
 
         self._recognizer = GestureClassifier(
             model_path=model_path if model_path else None,
             min_gesture_score=min_gesture_score,
+            proc_width=proc_width,
         )
 
         self._publisher = self.create_publisher(HandGestureDetection, output_topic, 10)
 
-        # camera_ros publishes best-effort. A default (reliable) subscription
-        # connects, reports healthy, and receives nothing.
+        image_qos = QoSProfile(depth=1)
+        image_qos.reliability = ReliabilityPolicy.BEST_EFFORT
+        image_qos.history = HistoryPolicy.KEEP_LAST
+
         self._subscription = self.create_subscription(
-            CompressedImage, input_topic, self._on_image, qos_profile_sensor_data
+            CompressedImage, input_topic, self._on_image, image_qos
         )
 
         self.get_logger().info('%s -> %s' % (input_topic, output_topic))
@@ -61,10 +65,9 @@ class HandGestureNode(Node):
     def _on_image(self, msg):
         self._last_frame_time = self.get_clock().now()
 
-        if self._busy:
+        if self._recognizer.is_busy():
             return
-        
-        self._busy = True
+
         try:
             frame = cv2.imdecode(
                 np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR
@@ -78,17 +81,8 @@ class HandGestureNode(Node):
             self._publish(result)
         except Exception as exc:  # a bad frame must not kill the node
             self.get_logger().error('Recognition failed: %s' % exc)
-        finally:
-            self._busy = False
 
     def _timestamp_ms(self, msg):
-        """Monotonic milliseconds derived from the image header.
-
-        Recognizers that hold temporal state require strictly increasing
-        timestamps. Deriving them from the frame rather than the wall clock
-        keeps them tied to the image, with a guard for cameras that publish a
-        zero stamp.
-        """
         stamp = msg.header.stamp
         ms = stamp.sec * 1000 + stamp.nanosec // 1_000_000
         if ms <= self._last_stamp_ms:
@@ -97,12 +91,6 @@ class HandGestureNode(Node):
         return ms
 
     def _publish(self, result):
-        """Majority vote over the window, then publish.
-
-        One message per processed frame, not on a timer. Message arrival is the
-        freshness signal, so if this node or the camera dies the topic goes
-        quiet and consumers can fail safe on a ~1s timeout.
-        """
         self._votes.append(result['gesture_label'])
         winner = Counter(self._votes).most_common(1)[0][0]
 
@@ -111,7 +99,10 @@ class HandGestureNode(Node):
             self._last_published = winner
             self._votes.clear()
 
-        self.get_logger().info(f'publishing: {winner}, score: {result["gesture_score"]:.2f}, two_hand: {result["gesture_two_hand"]}')
+        self.get_logger().debug(
+            f'publishing: {winner}, score: {result["gesture_score"]:.2f}, two_hand: {result["gesture_two_hand"]}',
+            throttle_duration_sec=1.0,
+        )
 
         msg = HandGestureDetection()
         msg.gesture_name = winner

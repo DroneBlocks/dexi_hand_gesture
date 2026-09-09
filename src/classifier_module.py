@@ -9,7 +9,7 @@ import joblib
 import mediapipe as mp
 
 class GestureClassifier:
-	def __init__(self, model_path = None, min_gesture_score = None):
+	def __init__(self, model_path = None, min_gesture_score = None, proc_width = 320):
 		if model_path:
 			self.landmarker_model = model_path
 			data_dir = os.path.dirname(os.path.abspath(model_path))
@@ -27,6 +27,18 @@ class GestureClassifier:
 		self.multi_confidence_floor = (min_gesture_score + 0.1) if min_gesture_score is not None else 0.6
 
 		self.box_pad = 0.02
+
+		# Downscale target width fed to the landmarker. Detection cost scales
+		# with pixel count, so this is the single biggest lever on a CM5 with
+		# no hardware acceleration. Landmark coords are normalized (0-1), so
+		# bbox output is still computed against the original frame size below.
+		self.proc_width = proc_width if proc_width and proc_width > 0 else None
+
+		# True only while a detect_async request is outstanding. This is the
+		# real backpressure signal - process_on_frame checks it before
+		# kicking off a new request, and the node checks it before even
+		# decoding the next frame.
+		self._detecting = False
 
 		self.latest = {
 			"hands": [],
@@ -65,6 +77,9 @@ class GestureClassifier:
 		self.landmarker = mp.tasks.vision.HandLandmarker.create_from_options(options)
 
 		print("initialized mediapipe hand landmarker")
+
+	def is_busy(self):
+		return self._detecting
 
 	def normalize_landmarks(self, landmarks):
 		wrist_x = landmarks[0].x
@@ -124,10 +139,16 @@ class GestureClassifier:
 		}
 
 	def set_latest(self, hands_out, gesture, score, two_hand):
-		self.latest["hands"] = hands_out
-		self.latest["gesture"] = gesture
-		self.latest["score"] = score
-		self.latest["two_hand"] = two_hand
+		# Assign a whole new dict rather than mutating keys in place. This
+		# runs on the mediapipe callback thread while process_on_frame reads
+		# self.latest on the ROS thread - a single reference swap is atomic
+		# under the GIL, so the reader never sees a half-updated state.
+		self.latest = {
+			"hands": hands_out,
+			"gesture": gesture,
+			"score": score,
+			"two_hand": two_hand
+		}
 
 	def vote(self, history, gesture, score, floor):
 		if score >= floor:
@@ -179,6 +200,10 @@ class GestureClassifier:
 		self.set_latest(hands_out, voted, score, True)
 
 	def on_result(self, result, output_image, timestamp_ms):
+		# Clear the in-flight flag first, on every path. This is what tells
+		# process_on_frame it's safe to submit the next request.
+		self._detecting = False
+
 		if not result.hand_landmarks:
 			self.single_history.clear()
 			self.multi_history.clear()
@@ -196,18 +221,34 @@ class GestureClassifier:
 			self.classify_single_mode(result, hands_out)
 
 	def process_on_frame(self, frame, timestamp_ms):
-		frame = cv2.flip(frame, 1)
-		rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-		mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = rgb)
-
 		frame_h, frame_w = frame.shape[:2]
 
-		self.landmarker.detect_async(mp_image, timestamp_ms)
+		# Only submit a new detection if the previous one has finished.
+		# Without this, detect_async requests can be issued faster than the
+		# landmarker can drain them, and they pile up - this is what eats
+		# CPU/RAM and can lock up the whole board on a 2GB CM5.
+		if not self._detecting:
+			proc_frame = frame
+			if self.proc_width and frame_w > self.proc_width:
+				proc_h = int(frame_h * (self.proc_width / frame_w))
+				proc_frame = cv2.resize(
+					frame, (self.proc_width, proc_h), interpolation = cv2.INTER_AREA
+				)
 
+			proc_frame = cv2.flip(proc_frame, 1)
+			rgb = cv2.cvtColor(proc_frame, cv2.COLOR_BGR2RGB)
+			mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = rgb)
+
+			self._detecting = True
+			self.landmarker.detect_async(mp_image, timestamp_ms)
+
+		return self._build_result(frame_w, frame_h)
+
+	def _build_result(self, frame_w, frame_h):
 		label = "no_gesture"
-	
+
 		hands = self.latest["hands"]
-		
+
 		if self.latest["two_hand"] and len(hands) >= 2:
 			label = self.latest["gesture"]
 		elif len(hands) >= 1:
@@ -229,7 +270,7 @@ class GestureClassifier:
 				box_y1 = float(hand["box_y1"] * frame_h)
 				box_x2 = float(hand["box_x2"] * frame_w)
 				box_y2 = float(hand["box_y2"] * frame_h)
-		
+
 		return {
 			"gesture_label": label,
 			"gesture_score": self.latest["score"],
