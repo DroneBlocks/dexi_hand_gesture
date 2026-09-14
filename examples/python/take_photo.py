@@ -26,7 +26,7 @@ class TakePhotoClient(Node):
         )
 
         self.cam_subscription = self.create_subscription(
-            CompressedImage, '/cam0/image_raw/compressed', self._on_image,
+            CompressedImage, '/cam0/image_raw/compressed_2hz', self._on_image,
             qos_profile_sensor_data, callback_group=self.image_callback_group
         )
         self.camera_frame = None

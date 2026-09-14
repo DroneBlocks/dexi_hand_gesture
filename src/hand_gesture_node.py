@@ -17,7 +17,7 @@ class HandGestureNode(Node):
     def __init__(self):
         super().__init__('hand_gesture')
 
-        self.declare_parameter('input_topic', '/cam0/image_raw/compressed')
+        self.declare_parameter('input_topic', '/cam0/image_raw/compressed_2hz')
         self.declare_parameter('output_topic', '/hand_gesture_detections')
         self.declare_parameter('model_path', '')
         self.declare_parameter('min_gesture_score', 0.25)
@@ -77,10 +77,11 @@ class HandGestureNode(Node):
                 return
 
             result = self._recognizer.process_on_frame(frame, self._timestamp_ms(msg))
-
-            self._publish(result)
         except Exception as exc:  # a bad frame must not kill the node
             self.get_logger().error('Recognition failed: %s' % exc)
+            return
+
+        self._publish(result)
 
     def _timestamp_ms(self, msg):
         stamp = msg.header.stamp
@@ -104,12 +105,17 @@ class HandGestureNode(Node):
             throttle_duration_sec=1.0,
         )
 
-        msg = HandGestureDetection()
-        msg.gesture_name = winner
-        msg.gesture_score = result['gesture_score']
-        msg.two_hand = result['gesture_two_hand']
-        msg.bbox = result['bbox']
-        self._publisher.publish(msg)
+        try:
+            msg = HandGestureDetection()
+            msg.gesture_name = str(winner)
+            msg.gesture_score = float(result['gesture_score'])
+            msg.two_hand = bool(result['gesture_two_hand'])
+            msg.bbox = [float(v) for v in result['bbox']]
+            self._publisher.publish(msg)
+        except Exception as exc:
+            import traceback
+            self.get_logger().error('Publish failed: %s' % exc)
+            self.get_logger().error(traceback.format_exc())
 
     def _on_idle_timer(self):
         elapsed = (self.get_clock().now() - self._last_frame_time).nanoseconds / 1e9
