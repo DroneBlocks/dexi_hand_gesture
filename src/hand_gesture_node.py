@@ -27,6 +27,13 @@ class HandGestureNode(Node):
         self.declare_parameter('idle_timeout_sec', 1.0)
         self.declare_parameter('idle_publish_rate', 1.0)
 
+        # Any gap between consecutive _on_image calls larger than this gets
+        # logged as a warning, well before it's large enough to trip the
+        # idle timeout below. Lets us see approaching gaps, not just the
+        # moment they cross the idle_timeout_sec threshold.
+        self.declare_parameter('frame_gap_warn_sec', 0.75)
+        self._frame_gap_warn_sec = self.get_parameter('frame_gap_warn_sec').value
+
         self._idle_timeout_sec = self.get_parameter('idle_timeout_sec').value
         idle_publish_rate = self.get_parameter('idle_publish_rate').value
 
@@ -52,7 +59,7 @@ class HandGestureNode(Node):
 
         self._publisher = self.create_publisher(HandGestureDetection, output_topic, 10)
 
-        image_qos = QoSProfile(depth=1)
+        image_qos = QoSProfile(depth=5)
         image_qos.reliability = ReliabilityPolicy.BEST_EFFORT
         image_qos.history = HistoryPolicy.KEEP_LAST
 
@@ -63,9 +70,19 @@ class HandGestureNode(Node):
         self.get_logger().info('%s -> %s' % (input_topic, output_topic))
 
     def _on_image(self, msg):
-        self._last_frame_time = self.get_clock().now()
+        now = self.get_clock().now()
+        gap = (now - self._last_frame_time).nanoseconds / 1e9
+        self._last_frame_time = now
+
+        if gap > self._frame_gap_warn_sec:
+            self.get_logger().warn(
+                'Gap of %.2fs since previous _on_image call (input_topic may have stalled)' % gap
+            )
+        else:
+            self.get_logger().debug('_on_image called, %.2fs since previous frame' % gap)
 
         if self._recognizer.is_busy():
+            self.get_logger().debug('Recognizer still busy, dropping this frame')
             return
 
         try:
@@ -119,6 +136,8 @@ class HandGestureNode(Node):
 
     def _on_idle_timer(self):
         elapsed = (self.get_clock().now() - self._last_frame_time).nanoseconds / 1e9
+        self.get_logger().debug('Idle timer tick, %.2fs since last frame' % elapsed)
+
         if elapsed < self._idle_timeout_sec:
             return
 

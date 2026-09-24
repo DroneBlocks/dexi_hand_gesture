@@ -26,5 +26,6 @@ def generate_launch_description():
             name='hand_gesture',
             output='screen',
             parameters=[LaunchConfiguration('params_file')],
+	    arguments=['--ros-args','--log-level','debug']
         ),
     ])
