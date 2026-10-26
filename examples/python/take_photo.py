@@ -78,6 +78,7 @@ class TakePhotoClient(Node):
 
 		self.cooldown_timer = None
 		self.flash_timer = None
+		self.cancel_flash_timer = None
 
 		self.declare_parameter('photo_save_dir', '~/dexi_photos')
 		self.photo_save_dir = os.path.expanduser(self.get_parameter('photo_save_dir').get_parameter_value().string_value)
@@ -121,9 +122,22 @@ class TakePhotoClient(Node):
 		self._confirmation_generation += 1
 		self._confirmation_write_pending = False
 
+		self._cancel_cancel_flash()
+
 		self.state = PhotoState.CONFIRMING
 		self.current_led_index = 0
-		self.set_led_ring_color("black")
+
+		# Only start filling once the ring is actually cleared, otherwise the
+		# clear can land after the first green pixels and wipe them out.
+		generation = self._confirmation_generation
+		self.set_led_ring_color(
+			"black",
+			on_response=lambda success: self._on_confirmation_ring_cleared(generation)
+		)
+
+	def _on_confirmation_ring_cleared(self, generation):
+		if generation != self._confirmation_generation or self.state != PhotoState.CONFIRMING:
+			return
 
 		self.increment_progress_timer.reset()
 
@@ -135,17 +149,27 @@ class TakePhotoClient(Node):
 		self._confirmation_generation += 1
 		self._confirmation_write_pending = False
 
-		self._clear_confirmation_leds(self.current_led_index)
+		# Setting the whole ring overwrites every progress pixel, so there is
+		# no need to clear them individually.
 		self.set_led_ring_color("red")
 
-		self.create_timer(0.5, lambda: self.set_led_ring_color("black"))
+		# create_timer repeats, so this must be tracked and canceled after it
+		# fires once, or it keeps blacking out the ring during later attempts.
+		self._cancel_cancel_flash()
+		self.cancel_flash_timer = self.create_timer(0.5, self._clear_cancel_flash)
 
 		self.current_led_index = 0
 		self.state = PhotoState.IDLE
 
-	def _clear_confirmation_leds(self, up_to_index):
-		for i in range(up_to_index + 1):
-			self.set_led_pixel_color(i, 0, 0, 0)
+	def _clear_cancel_flash(self):
+		self._cancel_cancel_flash()
+		self.set_led_ring_color("black")
+
+	def _cancel_cancel_flash(self):
+		if self.cancel_flash_timer is not None:
+			self.cancel_flash_timer.cancel()
+			self.destroy_timer(self.cancel_flash_timer)
+			self.cancel_flash_timer = None
 
 	def _increment_progress(self):
 		if self.state != PhotoState.CONFIRMING:
@@ -294,19 +318,22 @@ class TakePhotoClient(Node):
 		if on_response is not None:
 			on_response(index, result is not None)
 
-	def set_led_ring_color(self, color):
+	def set_led_ring_color(self, color, on_response=None):
 		request = LEDRingColor.Request()
 		request.color = color
 
 		future = self.led_ring_client.call_async(request)
-		future.add_done_callback(lambda f: self._on_led_response(f, color))
+		future.add_done_callback(lambda f: self._on_led_response(f, color, on_response))
 
-	def _on_led_response(self, future, color):
+	def _on_led_response(self, future, color, on_response=None):
 		result = future.result()
 		if result is not None:
 			self.get_logger().debug(f'LED set to {color}: {result.message}')
 		else:
 			self.get_logger().error(f'LED service call failed for color {color}')
+
+		if on_response is not None:
+			on_response(result is not None)
 
 	def _on_image(self, msg):
 		self._last_frame_time = self.get_clock().now()
