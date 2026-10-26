@@ -1,8 +1,14 @@
 /**:
   ros__parameters:
-    # Camera input. Use the 2 Hz throttled topic. The full 30 Hz feed costs ~86%
-    # of a core on a CM5, the throttled one ~10%. See README "Bench notes".
-    input_topic: /cam0/image_raw/compressed_2hz
+    # Camera input. The full-rate topic gives the freshest frames; the node only
+    # runs inference once per process_interval, so most frames are dropped
+    # cheaply (~4% of a core on a CM5 vs the 2 Hz throttled topic).
+    input_topic: /cam0/image_raw/compressed
+
+    # Seconds between inferences. This is the main CPU lever: on a CM5 with no
+    # hand in view, 0.1 costs ~53% of a core, 0.25 ~44%, 0.5 ~18%. Low values
+    # starve rosbridge and make the GCS camera feed lag.
+    process_interval: 0.5
     output_topic: /hand_gesture_detections
 
     # Absolute path to the recognizer model on the drone.

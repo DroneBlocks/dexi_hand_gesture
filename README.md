@@ -7,7 +7,7 @@ Detection uses [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/
 ## How it works
 
 ```
- /cam0/image_raw/compressed_2hz
+ /cam0/image_raw/compressed
             |
             v
    +------------------+     +---------------------+     +-----------------------+
@@ -107,7 +107,7 @@ The node logs each time the detected gesture changes (`gesture: fist`).
 
 | Direction | Topic (default) | Type | Description |
 |-----------|-----------------|------|-------------|
-| Subscribes | `/cam0/image_raw/compressed_2hz` | `sensor_msgs/CompressedImage` | Camera frames (best-effort QoS) |
+| Subscribes | `/cam0/image_raw/compressed` | `sensor_msgs/CompressedImage` | Camera frames (best-effort QoS) |
 | Publishes | `/hand_gesture_detections` | `dexi_interfaces/HandGestureDetection` | Current gesture |
 
 ### `HandGestureDetection` message
@@ -125,7 +125,9 @@ Set in `config/hand_gesture_params.yaml`, or override at launch.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `input_topic` | `/cam0/image_raw/compressed_2hz` | Camera topic to subscribe to |
+| `input_topic` | `/cam0/image_raw/compressed` | Camera topic to subscribe to |
+| `process_interval` | `0.1` (`0.5` in the shipped config) | Minimum seconds between inferences. Frames arriving in between are dropped before decoding. The main CPU lever |
+| `detect_timeout_sec` | `1.0` | If MediaPipe hasn't returned a result after this long, the request is treated as dropped and the next frame is processed |
 | `output_topic` | `/hand_gesture_detections` | Topic to publish detections on |
 | `model_path` | `''` | Path to `hand_landmarker.task`. The classifier `.joblib` is expected in the same directory. Empty looks for a `data/` directory next to the installed scripts, so set this to the repo's `data/` directory unless `data/` is installed with the package |
 | `min_gesture_score` | `0.25` | Confidence floor for single-hand predictions. The two-hand floor is this value + 0.1 |
@@ -139,8 +141,8 @@ Set in `config/hand_gesture_params.yaml`, or override at launch.
 
 - **Missing real gestures:** lower `min_gesture_score`.
 - **False triggers:** raise `min_gesture_score` and/or `vote_window`. Consumers can also apply their own threshold on `gesture_score` (the photo example uses 0.7).
-- **High CPU use or lag:** lower `proc_width`.
-- The default camera topic runs at 2 Hz, so expect up to roughly half a second of latency per decision. A larger `vote_window` adds to that.
+- **High CPU use, or the GCS camera feed lags:** raise `process_interval` first, then lower `proc_width`. The launch file runs the node under `nice -n 10` so rosbridge and the camera get CPU priority.
+- At the shipped `process_interval` of 0.5 s, expect up to roughly half a second of latency per decision. A larger `vote_window` adds to that.
 
 ## Examples
 
@@ -219,7 +221,7 @@ The node can run any gesture set you train. To make your own model:
 | Constant `no_gesture` | Camera topic isn't publishing, hand is out of frame, or `min_gesture_score` is too high |
 | `Gap of X s since previous _on_image call` warnings | The camera topic stalled. Check `ros2 topic hz` on the input topic |
 | Gesture flickers | Raise `vote_window` or `min_gesture_score`; collect more varied training data |
-| Very high CPU or the board becomes unresponsive | Lower `proc_width` and confirm no other heavy nodes are running |
+| Very high CPU or the board becomes unresponsive | Raise `process_interval`, lower `proc_width`, and confirm no other heavy nodes are running |
 
 ## License
 

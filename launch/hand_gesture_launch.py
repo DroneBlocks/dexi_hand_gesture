@@ -25,7 +25,9 @@ def generate_launch_description():
             executable='hand_gesture_node.py',
             name='hand_gesture',
             output='screen',
+            # Inference is best-effort; let rosbridge and the camera win CPU contention.
+            prefix='nice -n 10',
             parameters=[LaunchConfiguration('params_file')],
-	    arguments=['--ros-args','--log-level','debug']
+	        arguments=['--ros-args','--log-level','INFO']
         ),
     ])

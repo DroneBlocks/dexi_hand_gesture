@@ -1,0 +1,170 @@
+[
+    {
+        "id": "5f5d6abf64fbf1a2",
+        "type": "tab",
+        "label": "Gesture Demo",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "1f03e92abd538e9c",
+        "type": "ros2-subscribe",
+        "z": "5f5d6abf64fbf1a2",
+        "server": "27129f80a96ce509",
+        "topicname": "/hand_gesture_detections",
+        "messagetype": "apriltag_msgs/msg/AprilTagDetectionArray",
+        "x": 290,
+        "y": 280,
+        "wires": [
+            [
+                "8959b55e6e6c8655"
+            ]
+        ]
+    },
+    {
+        "id": "190cde7db99adc9b",
+        "type": "switch",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "set led color",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "fist",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "one",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "palm",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 730,
+        "y": 280,
+        "wires": [
+            [
+                "74ea221272d0d9e0"
+            ],
+            [
+                "974e2fc73e070d55"
+            ],
+            [
+                "a9206bf8899fb0f0"
+            ]
+        ]
+    },
+    {
+        "id": "74ea221272d0d9e0",
+        "type": "led",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "Blue LED",
+        "color": "blue",
+        "x": 920,
+        "y": 240,
+        "wires": [
+            [
+                "082b66548ec84e5c"
+            ]
+        ]
+    },
+    {
+        "id": "974e2fc73e070d55",
+        "type": "led",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "Yellow LED",
+        "color": "yellow",
+        "x": 930,
+        "y": 280,
+        "wires": [
+            [
+                "082b66548ec84e5c"
+            ]
+        ]
+    },
+    {
+        "id": "082b66548ec84e5c",
+        "type": "ros2-service-call",
+        "z": "5f5d6abf64fbf1a2",
+        "server": "27129f80a96ce509",
+        "x": 1160,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a9206bf8899fb0f0",
+        "type": "led",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "Red LED",
+        "color": "red",
+        "x": 920,
+        "y": 320,
+        "wires": [
+            [
+                "082b66548ec84e5c"
+            ]
+        ]
+    },
+    {
+        "id": "8959b55e6e6c8655",
+        "type": "function",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "get april tag id",
+        "func": "msg.payload = msg.payload.gesture_name\n\nreturn msg",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 280,
+        "wires": [
+            [
+                "190cde7db99adc9b",
+                "394d9720a2a85136"
+            ]
+        ]
+    },
+    {
+        "id": "394d9720a2a85136",
+        "type": "debug",
+        "z": "5f5d6abf64fbf1a2",
+        "name": "debug 3",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 660,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "27129f80a96ce509",
+        "type": "ros2-websocket-server",
+        "url": "${ROS2_WEBSOCKET_URL}"
+    },
+    {
+        "id": "4bdb148048c93c5a",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@droneblocks/node-red-dexi": "0.0.19"
+        }
+    }
+]

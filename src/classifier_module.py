@@ -9,7 +9,7 @@ import joblib
 import mediapipe as mp
 
 class GestureClassifier:
-	def __init__(self, model_path = None, min_gesture_score = None, proc_width = 320):
+	def __init__(self, model_path = None, min_gesture_score = None, proc_width = 320, detect_timeout_sec = 1.0):
 		if model_path:
 			self.landmarker_model = model_path
 			data_dir = os.path.dirname(os.path.abspath(model_path))
@@ -39,6 +39,13 @@ class GestureClassifier:
 		# kicking off a new request, and the node checks it before even
 		# decoding the next frame.
 		self._detecting = False
+		self._detect_started = 0.0
+
+		# MediaPipe does not guarantee a callback per detect_async call: it
+		# silently skips on_result when it drops a frame or the graph returns
+		# an error. Without this timeout _detecting would stay True forever
+		# and the node would stop processing frames entirely.
+		self.detect_timeout_sec = detect_timeout_sec
 
 		self.latest = {
 			"hands": [],
@@ -79,6 +86,10 @@ class GestureClassifier:
 		print("initialized mediapipe hand landmarker")
 
 	def is_busy(self):
+		if self._detecting and (time.monotonic() - self._detect_started) > self.detect_timeout_sec:
+			print("landmarker result never arrived, resetting busy flag")
+			self._detecting = False
+
 		return self._detecting
 
 	def normalize_landmarks(self, landmarks):
@@ -227,7 +238,7 @@ class GestureClassifier:
 		# Without this, detect_async requests can be issued faster than the
 		# landmarker can drain them, and they pile up - this is what eats
 		# CPU/RAM and can lock up the whole board on a 2GB CM5.
-		if not self._detecting:
+		if not self.is_busy():
 			proc_frame = frame
 			if self.proc_width and frame_w > self.proc_width:
 				proc_h = int(frame_h * (self.proc_width / frame_w))
@@ -240,7 +251,12 @@ class GestureClassifier:
 			mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = rgb)
 
 			self._detecting = True
-			self.landmarker.detect_async(mp_image, timestamp_ms)
+			self._detect_started = time.monotonic()
+			try:
+				self.landmarker.detect_async(mp_image, timestamp_ms)
+			except Exception:
+				self._detecting = False
+				raise
 
 		return self._build_result(frame_w, frame_h)
 

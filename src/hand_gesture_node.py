@@ -17,7 +17,7 @@ class HandGestureNode(Node):
     def __init__(self):
         super().__init__('hand_gesture')
 
-        self.declare_parameter('input_topic', '/cam0/image_raw/compressed_2hz')
+        self.declare_parameter('input_topic', '/cam0/image_raw/compressed')
         self.declare_parameter('output_topic', '/hand_gesture_detections')
         self.declare_parameter('model_path', '')
         self.declare_parameter('min_gesture_score', 0.25)
@@ -26,6 +26,9 @@ class HandGestureNode(Node):
 
         self.declare_parameter('idle_timeout_sec', 1.0)
         self.declare_parameter('idle_publish_rate', 1.0)
+
+        self.declare_parameter('process_interval', 0.1)
+        self.declare_parameter('detect_timeout_sec', 1.0)
 
         # Any gap between consecutive _on_image calls larger than this gets
         # logged as a warning, well before it's large enough to trip the
@@ -47,6 +50,10 @@ class HandGestureNode(Node):
         vote_window = max(1, self.get_parameter('vote_window').value)
         proc_width = self.get_parameter('proc_width').value
 
+        process_interval = max(0.0, self.get_parameter('process_interval').value)
+        self._process_interval_ns = int(process_interval * 1e9)
+        self._last_process_time = None  # None => first frame is always processed
+
         self._votes = deque(maxlen=vote_window)
         self._last_stamp_ms = -1
         self._last_published = None
@@ -55,6 +62,7 @@ class HandGestureNode(Node):
             model_path=model_path if model_path else None,
             min_gesture_score=min_gesture_score,
             proc_width=proc_width,
+            detect_timeout_sec=self.get_parameter('detect_timeout_sec').value,
         )
 
         self._publisher = self.create_publisher(HandGestureDetection, output_topic, 10)
@@ -85,10 +93,13 @@ class HandGestureNode(Node):
             self.get_logger().debug('Recognizer still busy, dropping this frame')
             return
 
+        # Throttle: only run classification once per process_interval.
+        if (self._last_process_time is not None) and ((now - self._last_process_time).nanoseconds < self._process_interval_ns):
+            return
+        self._last_process_time = now
+
         try:
-            frame = cv2.imdecode(
-                np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR
-            )
+            frame = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
             if frame is None:
                 self.get_logger().warn('Failed to decode frame')
                 return
@@ -117,10 +128,7 @@ class HandGestureNode(Node):
             self._last_published = winner
             self._votes.clear()
 
-        self.get_logger().debug(
-            f'publishing: {winner}, score: {result["gesture_score"]:.2f}, two_hand: {result["gesture_two_hand"]}',
-            throttle_duration_sec=1.0,
-        )
+        self.get_logger().debug(f'publishing: {winner}, score: {result["gesture_score"]:.2f}, two_hand: {result["gesture_two_hand"]}', throttle_duration_sec=1.0)
 
         try:
             msg = HandGestureDetection()
